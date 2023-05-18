@@ -54,3 +54,15 @@ func (r BookRepository) GetAll(ctx context.Context) ([]domain.Book, error) {
 
 	return books, nil
 }
+
+func (r BookRepository) GetById(ctx context.Context, id int64) (domain.Book, error) {
+	row := r.db.QueryRow("select id, title, author, publish_date, rating from books where id=$1", id)
+
+	var book domain.Book
+	err := row.Scan(&book.ID, &book.Title, &book.Author, &book.PublishDate, &book.Rating)
+	if err != nil {
+		return domain.Book{}, err
+	}
+
+	return book, err
+}

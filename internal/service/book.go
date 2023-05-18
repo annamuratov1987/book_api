@@ -8,6 +8,7 @@ import (
 type BookRepository interface {
 	Create(ctx context.Context, book domain.Book) (int64, error)
 	GetAll(ctx context.Context) ([]domain.Book, error)
+	GetById(ctx context.Context, id int64) (domain.Book, error)
 }
 
 type BookService struct {
@@ -26,4 +27,8 @@ func (s BookService) Create(ctx context.Context, book domain.Book) (int64, error
 
 func (s BookService) GetAll(ctx context.Context) ([]domain.Book, error) {
 	return s.repo.GetAll(ctx)
+}
+
+func (s BookService) GetById(ctx context.Context, id int64) (domain.Book, error) {
+	return s.repo.GetById(ctx, id)
 }

@@ -8,11 +8,13 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 type BookService interface {
 	Create(ctx context.Context, book domain.Book) (int64, error)
 	GetAll(ctx context.Context) ([]domain.Book, error)
+	GetById(ctx context.Context, id int64) (domain.Book, error)
 }
 
 type BookHandler struct {
@@ -31,6 +33,7 @@ func (h *BookHandler) InitRoutes() http.Handler {
 	{
 		books.HandleFunc("", h.createBook).Methods(http.MethodPost)
 		books.HandleFunc("", h.getAllBooks).Methods(http.MethodGet)
+		books.HandleFunc("/{id:[0-9]+}", h.getBookById).Methods(http.MethodGet)
 	}
 
 	return r
@@ -85,4 +88,38 @@ func (h BookHandler) getAllBooks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-Type", "application/json")
 	w.Write(result)
+}
+
+func (h BookHandler) getBookById(w http.ResponseWriter, r *http.Request) {
+	id, err := getIdFromRequest(r)
+	if err != nil {
+		log.Printf("BookHandler.getBookById() get id from request error: %s", err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	book, err := h.bookService.GetById(r.Context(), id)
+	if err != nil {
+		log.Printf("BookHandler.getBookById() bookService.GetById() error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	result, err := json.Marshal(book)
+	if err != nil {
+		log.Printf("BookHandler.getBookById() book json marshal error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(result)
+}
+
+func getIdFromRequest(r *http.Request) (int64, error) {
+	vars := mux.Vars(r)
+
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }

@@ -6,7 +6,8 @@ import (
 )
 
 type BookRepository interface {
-	Create(ctx context.Context, book domain.Book) error
+	Create(ctx context.Context, book domain.Book) (int64, error)
+	GetAll(ctx context.Context) ([]domain.Book, error)
 }
 
 type BookService struct {
@@ -19,11 +20,10 @@ func NewBookService(repo BookRepository) *BookService {
 	}
 }
 
-func (s BookService) Create(ctx context.Context, book domain.Book) error {
-	err := s.repo.Create(ctx, book)
-	if err != nil {
-		return err
-	}
+func (s BookService) Create(ctx context.Context, book domain.Book) (int64, error) {
+	return s.repo.Create(ctx, book)
+}
 
-	return nil
+func (s BookService) GetAll(ctx context.Context) ([]domain.Book, error) {
+	return s.repo.GetAll(ctx)
 }

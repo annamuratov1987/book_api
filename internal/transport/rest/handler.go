@@ -11,7 +11,8 @@ import (
 )
 
 type BookService interface {
-	Create(ctx context.Context, book domain.Book) error
+	Create(ctx context.Context, book domain.Book) (int64, error)
+	GetAll(ctx context.Context) ([]domain.Book, error)
 }
 
 type BookHandler struct {
@@ -26,7 +27,11 @@ func NewBookHandler(books BookService) BookHandler {
 
 func (h *BookHandler) InitRoutes() http.Handler {
 	r := mux.NewRouter()
-	r.HandleFunc("/create", h.createBook).Methods(http.MethodPost)
+	books := r.PathPrefix("/books").Subrouter()
+	{
+		books.HandleFunc("", h.createBook).Methods(http.MethodPost)
+		books.HandleFunc("", h.getAllBooks).Methods(http.MethodGet)
+	}
 
 	return r
 }
@@ -47,12 +52,37 @@ func (h BookHandler) createBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.bookService.Create(r.Context(), book)
+	lastInsertedId, err := h.bookService.Create(r.Context(), book)
 	if err != nil {
 		log.Printf("BookHandler.createBook() create book error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	result, err := json.Marshal(lastInsertedId)
+	if err != nil {
+		log.Printf("BookHandler.getAllBooks() lastInsertId json marshal error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	w.Write(result)
+}
+
+func (h BookHandler) getAllBooks(w http.ResponseWriter, r *http.Request) {
+	books, err := h.bookService.GetAll(r.Context())
+	if err != nil {
+		log.Printf("BookHandler.getAllBooks() get []book error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	result, err := json.Marshal(books)
+	if err != nil {
+		log.Printf("BookHandler.getAllBooks() []book json marshal error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(result)
 }

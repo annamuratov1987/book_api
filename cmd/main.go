@@ -4,21 +4,25 @@ import (
 	"book_api/internal/repository/psql"
 	"book_api/internal/service"
 	"book_api/internal/transport/rest"
-	"database/sql"
-	"fmt"
-	_ "github.com/lib/pq"
+	"book_api/pkg/database"
 	"log"
 	"net/http"
 )
 
 func main() {
+	connConfig := database.ConnectionConfig{
+		Host:     "127.0.0.1",
+		Port:     5432,
+		Username: "postgres",
+		Password: "123",
+		DBName:   "postgres",
+		SSLMode:  "disable",
+	}
 
-	db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=postgres password=123 dbname=postgres sslmode=disable")
+	db, err := database.NewPsqlConnection(connConfig)
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
-	defer db.Close()
 
 	bookRepo := psql.NewBookRepository(db)
 	bookService := service.NewBookService(bookRepo)
@@ -29,7 +33,7 @@ func main() {
 		Handler: bookHandler.InitRoutes(),
 	}
 
-	fmt.Println("Server started...")
+	log.Println("Server started...")
 
 	err = server.ListenAndServe()
 	if err != nil {

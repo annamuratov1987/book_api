@@ -1,6 +1,11 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var ErrorBookNotFound = errors.New("book not found")
 
 type Book struct {
 	ID          int64     `json:"id"`
@@ -8,4 +13,11 @@ type Book struct {
 	Author      string    `json:"author"`
 	PublishDate time.Time `json:"publish_date"`
 	Rating      int       `json:"rating"`
+}
+
+type UpdateBookInput struct {
+	Title       *string    `json:"title"`
+	Author      *string    `json:"author"`
+	PublishDate *time.Time `json:"publish_date"`
+	Rating      *int       `json:"rating"`
 }

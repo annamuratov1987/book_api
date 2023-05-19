@@ -4,6 +4,8 @@ import (
 	"book_api/internal/domain"
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 type BookRepository struct {
@@ -60,9 +62,45 @@ func (r BookRepository) GetById(ctx context.Context, id int64) (domain.Book, err
 
 	var book domain.Book
 	err := row.Scan(&book.ID, &book.Title, &book.Author, &book.PublishDate, &book.Rating)
-	if err != nil {
-		return domain.Book{}, err
+	if err == sql.ErrNoRows {
+		return book, domain.ErrorBookNotFound
 	}
 
 	return book, err
+}
+
+func (r BookRepository) Update(ctx context.Context, id int64, input domain.UpdateBookInput) error {
+	fields := make([]string, 0)
+	fieldId := 1
+	args := make([]interface{}, 0)
+
+	if input.Title != nil {
+		fields = append(fields, fmt.Sprintf("title=$%d", fieldId))
+		fieldId++
+		args = append(args, input.Title)
+	}
+
+	if input.Author != nil {
+		fields = append(fields, fmt.Sprintf("author=$%d", fieldId))
+		fieldId++
+		args = append(args, input.Author)
+	}
+
+	if input.PublishDate != nil {
+		fields = append(fields, fmt.Sprintf("publish_date=$%d", fieldId))
+		fieldId++
+		args = append(args, input.PublishDate)
+	}
+
+	if input.Rating != nil {
+		fields = append(fields, fmt.Sprintf("rating=$%d", fieldId))
+		fieldId++
+		args = append(args, input.Rating)
+	}
+
+	query := fmt.Sprintf("update books set %s where id=%d", strings.Join(fields, ", "), id)
+
+	_, err := r.db.Exec(query, args...)
+
+	return err
 }

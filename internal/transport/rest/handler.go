@@ -17,6 +17,7 @@ type BookService interface {
 	GetAll(ctx context.Context) ([]domain.Book, error)
 	GetById(ctx context.Context, id int64) (domain.Book, error)
 	Update(ctx context.Context, id int64, in domain.UpdateBookInput) error
+	Delete(ctx context.Context, id int64) error
 }
 
 type BookHandler struct {
@@ -37,6 +38,7 @@ func (h *BookHandler) InitRoutes() http.Handler {
 		books.HandleFunc("", h.getAllBooks).Methods(http.MethodGet)
 		books.HandleFunc("/{id:[0-9]+}", h.getBookById).Methods(http.MethodGet)
 		books.HandleFunc("/{id:[0-9]+}", h.updateBook).Methods(http.MethodPut)
+		books.HandleFunc("/{id:[0-9]+}", h.deleteBook).Methods(http.MethodDelete)
 	}
 
 	return r
@@ -60,6 +62,12 @@ func (h BookHandler) createBook(w http.ResponseWriter, r *http.Request) {
 
 	lastInsertedId, err := h.bookService.Create(r.Context(), book)
 	if err != nil {
+		if errors.Is(err, domain.ErrorEmptyRequiredField) {
+			log.Printf("BookHandler.createBook()/bookService.Create(): %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		log.Printf("BookHandler.createBook() create book error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -167,7 +175,45 @@ func (h BookHandler) updateBook(w http.ResponseWriter, r *http.Request) {
 
 	err = h.bookService.Update(r.Context(), book.ID, input)
 	if err != nil {
+		if errors.Is(err, domain.ErrorEmptyUpdateBookInput) {
+			log.Printf("BookHandler.updateBook()/bookService.Update(): %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		log.Printf("BookHandler.updateBook()/bookService.Update() error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h BookHandler) deleteBook(w http.ResponseWriter, r *http.Request) {
+	id, err := getIdFromRequest(r)
+	if err != nil {
+		log.Printf("BookHandler.deleteBook() get id from request error: %s", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	book, err := h.bookService.GetById(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrorBookNotFound) {
+			log.Printf("BookHandler.deleteBook()/bookService.GetById(): %s", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		log.Printf("BookHandler.deleteBook()/bookService.GetById(): %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+
+	}
+
+	err = h.bookService.Delete(r.Context(), book.ID)
+	if err != nil {
+		log.Printf("BookHandler.deleteBook()/bookService.Delete() error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

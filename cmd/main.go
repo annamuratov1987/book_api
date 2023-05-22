@@ -1,35 +1,49 @@
 package main
 
 import (
+	"book_api/internal/config"
 	"book_api/internal/repository/psql"
 	"book_api/internal/service"
 	"book_api/internal/transport/rest"
 	"book_api/pkg/database"
+	"fmt"
 	"log"
 	"net/http"
 )
 
-func main() {
-	connConfig := database.ConnectionConfig{
-		Host:     "127.0.0.1",
-		Port:     5432,
-		Username: "postgres",
-		Password: "123",
-		DBName:   "postgres",
-		SSLMode:  "disable",
-	}
+const (
+	CONFIG_DIR  = "configs"
+	CONFIG_FILE = "main"
+)
 
-	db, err := database.NewPsqlConnection(connConfig)
+func main() {
+	cfg, err := config.New(CONFIG_DIR, CONFIG_FILE)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Printf("config: %+v\n", cfg)
+
+	db, err := database.NewPsqlConnection(database.ConnectionConfig{
+		Host:     cfg.DB.Host,
+		Port:     cfg.DB.Port,
+		Username: cfg.DB.Username,
+		DBName:   cfg.DB.Name,
+		SSLMode:  cfg.DB.SSLMode,
+		Password: cfg.DB.Password,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
 	bookRepo := psql.NewBookRepository(db)
 	bookService := service.NewBookService(bookRepo)
 	bookHandler := rest.NewBookHandler(bookService)
 
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	server := http.Server{
-		Addr:    "localhost:8001",
+		Addr:    addr,
 		Handler: bookHandler.InitRoutes(),
 	}
 

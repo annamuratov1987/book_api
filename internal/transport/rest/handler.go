@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 )
@@ -32,6 +32,8 @@ func NewBookHandler(books BookService) BookHandler {
 
 func (h *BookHandler) InitRoutes() http.Handler {
 	r := mux.NewRouter()
+	r.Use(requestLogging)
+
 	books := r.PathPrefix("/books").Subrouter()
 	{
 		books.HandleFunc("", h.createBook).Methods(http.MethodPost)
@@ -47,7 +49,10 @@ func (h *BookHandler) InitRoutes() http.Handler {
 func (h BookHandler) createBook(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("BookHandler.createBook() read body error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "createBook",
+			"problem": "reading request body",
+		}).Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -55,27 +60,36 @@ func (h BookHandler) createBook(w http.ResponseWriter, r *http.Request) {
 	var book domain.Book
 	err = json.Unmarshal(reqBody, &book)
 	if err != nil {
-		log.Printf("BookHandler.createBook() json unmarshal error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "createBook",
+			"problem": "unmarshal request body",
+		}).Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	lastInsertedId, err := h.bookService.Create(r.Context(), book)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "createBook",
+			"problem": "service error",
+		}).Error(err)
+
 		if errors.Is(err, domain.ErrorEmptyRequiredField) {
-			log.Printf("BookHandler.createBook()/bookService.Create(): %s", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("BookHandler.createBook() create book error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	result, err := json.Marshal(lastInsertedId)
 	if err != nil {
-		log.Printf("BookHandler.getAllBooks() lastInsertId json marshal error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "createBook",
+			"problem": "lastInsertId json marshal error",
+		}).Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -88,14 +102,20 @@ func (h BookHandler) createBook(w http.ResponseWriter, r *http.Request) {
 func (h BookHandler) getAllBooks(w http.ResponseWriter, r *http.Request) {
 	books, err := h.bookService.GetAll(r.Context())
 	if err != nil {
-		log.Printf("BookHandler.getAllBooks() get []book error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "getAllBooks",
+			"problem": "get []book error",
+		}).Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	result, err := json.Marshal(books)
 	if err != nil {
-		log.Printf("BookHandler.getAllBooks() []book json marshal error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "getAllBooks",
+			"problem": "[]book json marshal error",
+		}).Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -107,27 +127,37 @@ func (h BookHandler) getAllBooks(w http.ResponseWriter, r *http.Request) {
 func (h BookHandler) getBookById(w http.ResponseWriter, r *http.Request) {
 	id, err := getIdFromRequest(r)
 	if err != nil {
-		log.Printf("BookHandler.getBookById() get id from request error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "getBookById",
+			"problem": "get id from request error",
+		}).Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	book, err := h.bookService.GetById(r.Context(), id)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "getBookById",
+			"problem": "service error",
+		}).Error(err)
+
 		if errors.Is(err, domain.ErrorBookNotFound) {
-			log.Printf("BookHandler.getBookById()/bookService.GetById(): %s", err)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		log.Printf("BookHandler.getBookById()/bookService.GetById() error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	result, err := json.Marshal(book)
 	if err != nil {
-		log.Printf("BookHandler.getBookById() book json marshal error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "getBookById",
+			"problem": "book json marshal error",
+		}).Error(err)
+
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -139,20 +169,26 @@ func (h BookHandler) getBookById(w http.ResponseWriter, r *http.Request) {
 func (h BookHandler) updateBook(w http.ResponseWriter, r *http.Request) {
 	id, err := getIdFromRequest(r)
 	if err != nil {
-		log.Printf("BookHandler.updateBook() get id from request error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "updateBook",
+			"problem": "get id from request error",
+		}).Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	book, err := h.bookService.GetById(r.Context(), id)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "updateBook",
+			"problem": "service error",
+		}).Error(err)
+
 		if errors.Is(err, domain.ErrorBookNotFound) {
-			log.Printf("BookHandler.updateBook()/bookService.GetById(): %s", err)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		log.Printf("BookHandler.updateBook()/bookService.GetById(): %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 
@@ -160,7 +196,10 @@ func (h BookHandler) updateBook(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("BookHandler.updateBook() read request body error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "updateBook",
+			"problem": "read request body error",
+		}).Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -168,20 +207,26 @@ func (h BookHandler) updateBook(w http.ResponseWriter, r *http.Request) {
 	var input domain.UpdateBookInput
 	err = json.Unmarshal(body, &input)
 	if err != nil {
-		log.Printf("BookHandler.updateBook() json unmarshal error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "updateBook",
+			"problem": "json unmarshal error",
+		}).Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	err = h.bookService.Update(r.Context(), book.ID, input)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "updateBook",
+			"problem": "service error",
+		}).Error(err)
+
 		if errors.Is(err, domain.ErrorEmptyUpdateBookInput) {
-			log.Printf("BookHandler.updateBook()/bookService.Update(): %s", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("BookHandler.updateBook()/bookService.Update() error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -192,20 +237,27 @@ func (h BookHandler) updateBook(w http.ResponseWriter, r *http.Request) {
 func (h BookHandler) deleteBook(w http.ResponseWriter, r *http.Request) {
 	id, err := getIdFromRequest(r)
 	if err != nil {
-		log.Printf("BookHandler.deleteBook() get id from request error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "deleteBook",
+			"problem": "get id from request error",
+		}).Error(err)
+
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	book, err := h.bookService.GetById(r.Context(), id)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "deleteBook",
+			"problem": "service error",
+		}).Error(err)
+
 		if errors.Is(err, domain.ErrorBookNotFound) {
-			log.Printf("BookHandler.deleteBook()/bookService.GetById(): %s", err)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		log.Printf("BookHandler.deleteBook()/bookService.GetById(): %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 
@@ -213,7 +265,11 @@ func (h BookHandler) deleteBook(w http.ResponseWriter, r *http.Request) {
 
 	err = h.bookService.Delete(r.Context(), book.ID)
 	if err != nil {
-		log.Printf("BookHandler.deleteBook()/bookService.Delete() error: %s", err)
+		log.WithFields(log.Fields{
+			"handler": "deleteBook",
+			"problem": "service error",
+		}).Error(err)
+
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

@@ -7,8 +7,9 @@ import (
 	"book_api/internal/transport/rest"
 	"book_api/pkg/database"
 	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
+	"os"
 )
 
 const (
@@ -16,13 +17,17 @@ const (
 	CONFIG_FILE = "main"
 )
 
+func init() {
+	log.SetFormatter(&log.JSONFormatter{})
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.InfoLevel)
+}
+
 func main() {
 	cfg, err := config.New(CONFIG_DIR, CONFIG_FILE)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	log.Printf("config: %+v\n", cfg)
 
 	db, err := database.NewPsqlConnection(database.ConnectionConfig{
 		Host:     cfg.DB.Host,
@@ -47,7 +52,7 @@ func main() {
 		Handler: bookHandler.InitRoutes(),
 	}
 
-	log.Println("Server started...")
+	log.Info("Server started")
 
 	err = server.ListenAndServe()
 	if err != nil {

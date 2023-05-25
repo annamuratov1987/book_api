@@ -6,6 +6,7 @@ import (
 	"book_api/internal/service"
 	"book_api/internal/transport/rest"
 	"book_api/pkg/database"
+	"book_api/pkg/hash"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -42,9 +43,15 @@ func main() {
 	}
 	defer db.Close()
 
+	hasher := hash.NewSHA1Hasher("acbd")
+
+	userRepo := psql.NewUserRepository(db)
+	userService := service.NewUserService(userRepo, hasher, []byte("my secret"), cfg.Auth.TokenTTL)
+
 	bookRepo := psql.NewBookRepository(db)
 	bookService := service.NewBookService(bookRepo)
-	bookHandler := rest.NewBookHandler(bookService)
+
+	bookHandler := rest.NewHandler(bookService, userService)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	server := http.Server{

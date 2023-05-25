@@ -46,7 +46,7 @@ func main() {
 	hasher := hash.NewSHA1Hasher("acbd")
 
 	userRepo := psql.NewUserRepository(db)
-	userService := service.NewUserService(userRepo, hasher)
+	userService := service.NewUserService(userRepo, hasher, []byte("my secret"), cfg.Auth.TokenTTL)
 
 	bookRepo := psql.NewBookRepository(db)
 	bookService := service.NewBookService(bookRepo)

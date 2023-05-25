@@ -22,7 +22,8 @@ type BookService interface {
 
 type UserService interface {
 	SignUp(ctx context.Context, input domain.SignUpInput) (int64, error)
-	SignIn(ctx context.Context, input domain.SignInInput) error
+	SignIn(ctx context.Context, input domain.SignInInput) (string, error)
+	ParseToken(ctx context.Context, token string) (int64, error)
 }
 
 type Handler struct {
@@ -43,6 +44,8 @@ func (h *Handler) InitRoutes() http.Handler {
 
 	books := r.PathPrefix("/books").Subrouter()
 	{
+		books.Use(h.authMiddleware)
+
 		books.HandleFunc("", h.createBook).Methods(http.MethodPost)
 		books.HandleFunc("", h.getAllBooks).Methods(http.MethodGet)
 		books.HandleFunc("/{id:[0-9]+}", h.getBookById).Methods(http.MethodGet)
@@ -335,7 +338,60 @@ func (h *Handler) signUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) signIn(w http.ResponseWriter, r *http.Request) {
-	//TODO
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "signIn",
+			"problem": "read request body error",
+		}).Error(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var signInInput domain.SignInInput
+	if err := json.Unmarshal(body, &signInInput); err != nil {
+		log.WithFields(log.Fields{
+			"handler": "signIn",
+			"problem": "request body unmarshal error",
+		}).Error(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := signInInput.Validate(); err != nil {
+		log.WithFields(log.Fields{
+			"handler": "signIn",
+			"problem": "request validation error",
+		}).Error(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	strToken, err := h.userService.SignIn(r.Context(), signInInput)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "signIn",
+			"problem": "userService error",
+		}).Error(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	response, err := json.Marshal(map[string]string{
+		"token": strToken,
+	})
+	if err != nil {
+		log.WithFields(log.Fields{
+			"handler": "signIn",
+			"problem": "response json marshal error",
+		}).Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(response)
 }
 
 func getIdFromRequest(r *http.Request) (int64, error) {

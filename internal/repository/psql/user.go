@@ -31,3 +31,16 @@ func (r UserRepository) Create(ctx context.Context, user domain.User) (int64, er
 
 	return id, nil
 }
+
+func (r UserRepository) GetByCredentials(ctx context.Context, email, password string) (domain.User, error) {
+	row := r.db.QueryRow(
+		"select id, name, email, registered_at from users where email=$1 and password=$2", email, password)
+
+	var user domain.User
+	err := row.Scan(&user.ID, &user.Name, &user.Email, &user.RegisteredAt)
+	if err == sql.ErrNoRows {
+		return user, domain.ErrorUserNotFound
+	}
+
+	return user, err
+}

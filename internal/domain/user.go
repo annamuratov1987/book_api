@@ -1,11 +1,14 @@
 package domain
 
 import (
+	"errors"
 	"github.com/go-playground/validator/v10"
 	"time"
 )
 
 var validate *validator.Validate
+
+var ErrorUserNotFound = errors.New("user with such credentials not found")
 
 func init() {
 	validate = validator.New()

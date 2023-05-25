@@ -1,3 +1,5 @@
 server:
   host: localhost
   port: 8001
+auth:
+  token_ttl: 15m
